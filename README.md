@@ -4,7 +4,8 @@
 [![Tests](https://github.com/HookInbox/hookinbox-verify/actions/workflows/test.yml/badge.svg)](https://github.com/HookInbox/hookinbox-verify/actions)
 [![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/HookInbox/hookinbox-verify/blob/main/LICENSE)
 
-Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, and more.
+Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, and more. Most platform SDKs validate signatures but return generic errors.
+This library returns structured failure reasons to make debugging easier.
 
 ## Why @hookinbox/verify?
 
