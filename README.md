@@ -2,8 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@hookinbox/verify)](https://www.npmjs.com/package/@hookinbox/verify)
 [![Tests](https://github.com/HookInbox/hookinbox-verify/actions/workflows/test.yml/badge.svg)](https://github.com/HookInbox/hookinbox-verify/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/HookInbox/hookinbox-verify)](https://codecov.io/gh/HookInbox/hookinbox-verify)
-[![License](https://img.shields.io/npm/l/@HookInbox/hookinbox-verify)](https://github.com/HookInbox/hookinbox-verify/blob/main/LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-green)](https://github.com/HookInbox/hookinbox-verify/blob/main/LICENSE)
 
 Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, and more.
 
