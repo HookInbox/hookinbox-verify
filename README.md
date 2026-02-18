@@ -12,6 +12,17 @@ Most platform SDKs validate signatures but throw generic errors like:
 
 This library returns structured failure reasons (timestamp too old, body modified, wrong algorithm, etc.) to make debugging easier.
 
+```javascript
+const result = verifyStripe(...)
+
+if (!result.ok) {
+  console.log(result.kind)
+}
+// "timestamp_too_old"
+// "signature_mismatch"
+// "missing_header"
+```
+
 ## Why @hookinbox/verify?
 
 **Why use this instead of platform SDKs?**
@@ -199,4 +210,4 @@ MIT © [HookInbox](https://hookinbox.dev)
 
 ---
 
-**Built with ❤️ by the HookInbox community**
+**Maintained by the HookInbox project.**
