@@ -8,7 +8,7 @@ Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, and 
 
 ## Why @hookinbox/verify?
 
-**Better than platform SDKs:**
+**Why use this instead of platform SDKs?**
 - ✅ **Zero dependencies** - No bloat, just verification
 - ✅ **Detailed diagnostics** - Know exactly why verification failed
 - ✅ **Type-safe** - Full TypeScript support
