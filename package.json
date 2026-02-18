@@ -1,0 +1,44 @@
+{
+  "name": "@hookinbox/verify",
+  "version": "1.0.0",
+  "description": "Zero-dependency webhook signature verification for Stripe, GitHub, Shopify, and more",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run test && npm run build"
+  },
+  "keywords": [
+    "webhook",
+    "signature",
+    "verify",
+    "stripe",
+    "github",
+    "shopify",
+    "hmac",
+    "security"
+  ],
+  "author": "HookInbox <contact@hookinbox.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HookInbox/hookinbox-verify"
+  },
+  "bugs": {
+    "url": "https://github.com/HookInbox/hookinbox-verify/issues"
+  },
+  "homepage": "https://hookinbox.dev",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.19.33",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3"
+  }
+}
