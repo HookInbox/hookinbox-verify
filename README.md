@@ -35,16 +35,27 @@ npm install @hookinbox/verify
 import { verifyStripe } from '@hookinbox/verify';
 
 const result = verifyStripe({
-  body: rawBody,
-  signature: req.headers['stripe-signature'],
-  secret: 'whsec_...',
-  tolerance: 300, // optional
+  rawBodyBytes: rawBody, // string | Buffer | Uint8Array
+  stripeSignatureHeader: req.headers['stripe-signature'],
+  signingSecret: 'whsec_...', // must start with whsec_
+  toleranceSec: 300, // optional, default 300
 });
 
-if (result.valid) {
+if (result.ok) {
   console.log('✅ Valid signature');
+  console.log('Timestamp:', result.timestamp);
+  console.log('Age:', result.ageSec, 'seconds');
 } else {
-  console.error('❌ Invalid:', result.error);
+  console.error('❌ Error:', result.kind);
+  
+  if (result.kind === 'timestamp_too_old') {
+    console.error(`Timestamp is ${result.ageSec}s old (max: ${result.toleranceSec}s)`);
+  }
+  
+  if (result.kind === 'signature_mismatch') {
+    console.error('Expected:', result.expectedHex);
+    console.error('Received:', result.receivedV1);
+  }
 }
 ```
 
@@ -53,10 +64,18 @@ if (result.valid) {
 import { verifyGitHub } from '@hookinbox/verify';
 
 const result = verifyGitHub({
-  body: rawBody,
-  signature: req.headers['x-hub-signature-256'],
+  rawBodyBytes: rawBody,
+  signature256: req.headers['x-hub-signature-256'], // preferred
+  signature: req.headers['x-hub-signature'],         // fallback (sha1)
   secret: 'your-secret',
 });
+
+if (result.ok) {
+  console.log('✅ Valid signature');
+  console.log('Algorithm:', result.algorithm);
+} else {
+  console.error('❌ Error:', result.kind);
+}
 ```
 
 ### Shopify
@@ -64,11 +83,58 @@ const result = verifyGitHub({
 import { verifyShopify } from '@hookinbox/verify';
 
 const result = verifyShopify({
-  body: rawBody,
-  signature: req.headers['x-shopify-hmac-sha256'],
+  rawBodyBytes: rawBody,
+  hmacHeader: req.headers['x-shopify-hmac-sha256'],
   secret: 'your-secret',
 });
+
+if (result.ok) {
+  console.log('✅ Valid signature');
+} else {
+  console.error('❌ Error:', result.kind);
+}
+
+## Utilities
+
+The package also exports timing-safe comparison utilities:
+
+### Timing-Safe String Comparison
+```typescript
+import { timingSafeEqual } from '@hookinbox/verify';
+
+const isValid = timingSafeEqual(expectedSignature, receivedSignature);
 ```
+
+### Timing-Safe Byte Comparison
+```typescript
+import { constantTimeEqual } from '@hookinbox/verify';
+
+const a = new Uint8Array([1, 2, 3]);
+const b = new Uint8Array([1, 2, 3]);
+const isEqual = constantTimeEqual(a, b); // true
+```
+
+### Hex Utilities
+```typescript
+import { hexToBytes, bytesToHex } from '@hookinbox/verify';
+
+// Convert hex string to bytes
+const bytes = hexToBytes('deadbeef');
+// Uint8Array([0xDE, 0xAD, 0xBE, 0xEF])
+
+// Convert bytes to hex string
+const hex = bytesToHex(bytes);
+// 'deadbeef'
+```
+
+## Security
+
+All signature comparisons use **constant-time comparison** to prevent timing attacks. This means the comparison time doesn't leak information about how many characters match.
+
+**Why this matters:**
+- Standard `===` comparison short-circuits on first mismatch
+- Attackers can measure response times to guess secrets
+- Our `timingSafeEqual` always compares all bytes
 
 ## Features
 

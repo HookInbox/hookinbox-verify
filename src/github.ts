@@ -1,67 +1,88 @@
 import { createHmac } from 'crypto';
 import { timingSafeEqual } from './timing-safe';
 
+export type GitHubVerifyResult =
+  | { ok: true; kind: 'valid'; algorithm: 'sha1' | 'sha256'; expected: string }
+  | { ok: false; kind: 'header_missing' }
+  | { ok: false; kind: 'signature_malformed' }
+  | { ok: false; kind: 'unsupported_algorithm'; algorithm: string }
+  | { ok: false; kind: 'signature_mismatch'; expected: string; received: string };
+
 export interface GitHubVerifyOptions {
-  body: string | Buffer;
-  signature: string;
+  rawBodyBytes: Buffer | Uint8Array | string;
+  signature256?: string | null; // x-hub-signature-256
+  signature?: string | null;     // x-hub-signature (fallback)
   secret: string;
 }
 
-export interface GitHubVerifyResult {
-  valid: boolean;
-  algorithm?: 'sha1' | 'sha256';
-  error?: string;
-  details?: {
-    expectedSignature?: string;
-    receivedSignature?: string;
-  };
+function hmacSha256Hex(secret: string, data: Buffer): string {
+  return createHmac('sha256', secret).update(data).digest('hex');
 }
 
-export function verifyGitHub(options: GitHubVerifyOptions): GitHubVerifyResult {
-  const { body, signature, secret } = options;
+function hmacSha1Hex(secret: string, data: Buffer): string {
+  return createHmac('sha1', secret).update(data).digest('hex');
+}
 
-  try {
-    // Parse signature (format: sha256=abc123 or sha1=abc123)
-    const match = signature.match(/^(sha1|sha256)=([a-f0-9]+)$/);
-    if (!match) {
-      return {
-        valid: false,
-        error: 'Invalid signature format',
-      };
-    }
+export function verifyGitHub({
+  rawBodyBytes,
+  signature256,
+  signature,
+  secret,
+}: GitHubVerifyOptions): GitHubVerifyResult {
+  if (!secret?.trim()) {
+    return { ok: false, kind: 'signature_malformed' };
+  }
 
-    const algorithm = match[1] as 'sha1' | 'sha256';
-    const receivedSignature = match[2];
+  const hdr256 = signature256?.trim();
+  const hdr1 = signature?.trim();
+  const hdr = hdr256 || hdr1;
 
-    // Compute expected signature
-    const bodyString = typeof body === 'string' ? body : body.toString('utf8');
-    const expectedSignature = createHmac(algorithm, secret)
-      .update(bodyString)
-      .digest('hex');
+  if (!hdr) {
+    return { ok: false, kind: 'header_missing' };
+  }
 
-    // Compare signatures (timing-safe)
-    const valid = timingSafeEqual(expectedSignature, receivedSignature);
+  const [algo, sig] = hdr.split('=');
+  if (!algo || !sig) {
+    return { ok: false, kind: 'signature_malformed' };
+  }
 
-    if (!valid) {
-      return {
-        valid: false,
-        algorithm,
-        error: 'Signature mismatch',
-        details: {
-          expectedSignature,
-          receivedSignature,
-        },
-      };
-    }
-
+  const algorithm = algo.toLowerCase();
+  if (algorithm !== 'sha256' && algorithm !== 'sha1') {
     return {
-      valid: true,
+      ok: false,
+      kind: 'unsupported_algorithm',
       algorithm,
     };
-  } catch (err) {
+  }
+
+  if (!/^[0-9a-f]+$/i.test(sig)) {
+    return { ok: false, kind: 'signature_malformed' };
+  }
+
+  // Convert to Buffer if needed
+  const bodyBuffer = typeof rawBodyBytes === 'string'
+    ? Buffer.from(rawBodyBytes, 'utf8')
+    : rawBodyBytes instanceof Uint8Array
+    ? Buffer.from(rawBodyBytes)
+    : rawBodyBytes;
+
+  const expected = algorithm === 'sha256'
+    ? hmacSha256Hex(secret, bodyBuffer)
+    : hmacSha1Hex(secret, bodyBuffer);
+
+  if (timingSafeEqual(expected, sig.toLowerCase())) {
     return {
-      valid: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      ok: true,
+      kind: 'valid',
+      algorithm: algorithm as 'sha1' | 'sha256',
+      expected,
     };
   }
+
+  return {
+    ok: false,
+    kind: 'signature_mismatch',
+    expected,
+    received: sig.toLowerCase(),
+  };
 }

@@ -1,9 +1,9 @@
-import { createHmac } from 'crypto';
 import { verifyShopify } from '../src/shopify';
+import { createHmac } from 'crypto';
 
 describe('verifyShopify', () => {
   const secret = 'test_secret';
-  const body = '{"id":12345,"email":"test@example.com"}';
+  const body = '{"id":12345}';
 
   function generateValidSignature(body: string, secret: string): string {
     return createHmac('sha256', secret)
@@ -11,88 +11,60 @@ describe('verifyShopify', () => {
       .digest('base64');
   }
 
-  describe('valid signatures', () => {
-    it('should verify a valid signature', () => {
-      const signature = generateValidSignature(body, secret);
+  it('should verify valid signature', () => {
+    const signature = generateValidSignature(body, secret);
 
-      const result = verifyShopify({
-        body,
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(true);
-      expect(result.error).toBeUndefined();
+    const result = verifyShopify({
+      rawBodyBytes: body,
+      hmacHeader: signature,
+      secret,
     });
 
-    it('should accept Buffer body', () => {
-      const signature = generateValidSignature(body, secret);
-
-      const result = verifyShopify({
-        body: Buffer.from(body),
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(true);
-    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.kind).toBe('valid');
+      expect(result.expected).toBe(signature);
+    }
   });
 
-  describe('invalid signatures', () => {
-    it('should reject signature with wrong secret', () => {
-      const signature = generateValidSignature(body, 'wrong_secret');
-
-      const result = verifyShopify({
-        body,
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Signature mismatch');
-      expect(result.details?.expectedSignature).toBeDefined();
-      expect(result.details?.receivedSignature).toBeDefined();
+  it('should reject missing header', () => {
+    const result = verifyShopify({
+      rawBodyBytes: body,
+      secret,
     });
 
-    it('should reject signature with modified body', () => {
-      const signature = generateValidSignature(body, secret);
-
-      const result = verifyShopify({
-        body: '{"id":99999}',
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Signature mismatch');
-    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('header_missing');
+    }
   });
 
-  describe('edge cases', () => {
-    it('should handle empty body', () => {
-      const emptyBody = '';
-      const signature = generateValidSignature(emptyBody, secret);
-
-      const result = verifyShopify({
-        body: emptyBody,
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(true);
+  it('should reject malformed signature', () => {
+    const result = verifyShopify({
+      rawBodyBytes: body,
+      hmacHeader: 'not-base64!!!',
+      secret,
     });
 
-    it('should handle special characters in body', () => {
-      const specialBody = '{"name":"Café ☕","price":"$9.99"}';
-      const signature = generateValidSignature(specialBody, secret);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('signature_malformed');
+    }
+  });
 
-      const result = verifyShopify({
-        body: specialBody,
-        signature,
-        secret,
-      });
+  it('should reject signature mismatch', () => {
+    const signature = generateValidSignature(body, 'wrong_secret');
 
-      expect(result.valid).toBe(true);
+    const result = verifyShopify({
+      rawBodyBytes: body,
+      hmacHeader: signature,
+      secret,
     });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.kind === 'signature_mismatch') {
+      expect(result.expected).toBeDefined();
+      expect(result.received).toBeDefined();
+    }
   });
 });

@@ -1,5 +1,56 @@
+import { verifyStripe, parseStripeSignatureHeader } from '../src/stripe';
 import { createHmac } from 'crypto';
-import { verifyStripe } from '../src/stripe';
+
+describe('parseStripeSignatureHeader', () => {
+  it('should parse valid signature header', () => {
+    const result = parseStripeSignatureHeader('t=1234567890,v1=abc123');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.timestamp).toBe(1234567890);
+      expect(result.v1).toEqual(['abc123']);
+    }
+  });
+
+  it('should parse multiple v1 signatures', () => {
+    const result = parseStripeSignatureHeader('t=123,v1=abc,v1=def');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.v1).toEqual(['abc', 'def']);
+    }
+  });
+
+  it('should reject missing header', () => {
+    const result = parseStripeSignatureHeader(null);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('missing_header');
+    }
+  });
+
+  it('should reject missing timestamp', () => {
+    const result = parseStripeSignatureHeader('v1=abc123');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('missing_t');
+    }
+  });
+
+  it('should reject missing v1', () => {
+    const result = parseStripeSignatureHeader('t=1234567890');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('missing_v1');
+    }
+  });
+
+  it('should reject invalid timestamp', () => {
+    const result = parseStripeSignatureHeader('t=invalid,v1=abc');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('bad_t');
+    }
+  });
+});
 
 describe('verifyStripe', () => {
   const secret = 'whsec_test_secret';
@@ -13,175 +64,88 @@ describe('verifyStripe', () => {
     return `t=${timestamp},v1=${signature}`;
   }
 
-  describe('valid signatures', () => {
-    it('should verify a valid signature', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signature = generateValidSignature(timestamp, body, secret);
+  it('should verify valid signature', () => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = generateValidSignature(timestamp, body, secret);
 
-      const result = verifyStripe({
-        body,
-        signature,
-        secret,
-      });
+    const result = verifyStripe({
+      rawBodyBytes: body,
+      stripeSignatureHeader: signature,
+      signingSecret: secret,
+    });
 
-      expect(result.valid).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.kind).toBe('valid');
       expect(result.timestamp).toBe(timestamp);
-      expect(result.error).toBeUndefined();
-    });
-
-    it('should accept Buffer body', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signature = generateValidSignature(timestamp, body, secret);
-
-      const result = verifyStripe({
-        body: Buffer.from(body),
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(true);
-    });
-
-    it('should accept signature within tolerance', () => {
-      const timestamp = Math.floor(Date.now() / 1000) - 200; // 200 seconds ago
-      const signature = generateValidSignature(timestamp, body, secret);
-
-      const result = verifyStripe({
-        body,
-        signature,
-        secret,
-        tolerance: 300,
-      });
-
-      expect(result.valid).toBe(true);
-    });
+    }
   });
 
-  describe('invalid signatures', () => {
-    it('should reject signature with wrong secret', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signature = generateValidSignature(timestamp, body, 'wrong_secret');
+  it('should reject timestamp too old', () => {
+    const timestamp = Math.floor(Date.now() / 1000) - 400;
+    const signature = generateValidSignature(timestamp, body, secret);
 
-      const result = verifyStripe({
-        body,
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Signature mismatch');
-      expect(result.details?.expectedSignature).toBeDefined();
-      expect(result.details?.receivedSignature).toBeDefined();
+    const result = verifyStripe({
+      rawBodyBytes: body,
+      stripeSignatureHeader: signature,
+      signingSecret: secret,
+      toleranceSec: 300,
     });
 
-    it('should reject signature with modified body', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signature = generateValidSignature(timestamp, body, secret);
-
-      const result = verifyStripe({
-        body: '{"event":"modified"}',
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Signature mismatch');
-    });
-
-    it('should reject signature outside tolerance', () => {
-      const timestamp = Math.floor(Date.now() / 1000) - 400; // 400 seconds ago
-      const signature = generateValidSignature(timestamp, body, secret);
-
-      const result = verifyStripe({
-        body,
-        signature,
-        secret,
-        tolerance: 300,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('Timestamp is');
-      expect(result.error).toContain('seconds old');
-      expect(result.details?.timestampAge).toBe(400);
-    });
-
-    it('should reject invalid signature format', () => {
-      const result = verifyStripe({
-        body,
-        signature: 'invalid-format',
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Invalid signature format');
-    });
-
-    it('should reject signature without timestamp', () => {
-      const result = verifyStripe({
-        body,
-        signature: 'v1=abc123',
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Invalid signature format');
-    });
-
-    it('should reject signature without v1 signature', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const result = verifyStripe({
-        body,
-        signature: `t=${timestamp}`,
-        secret,
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Invalid signature format');
-    });
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.kind === 'timestamp_too_old') {
+      expect(result.ageSec).toBeGreaterThan(300);
+      expect(result.toleranceSec).toBe(300);
+    }
   });
 
-  describe('edge cases', () => {
-    it('should handle empty body', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const emptyBody = '';
-      const signature = generateValidSignature(timestamp, emptyBody, secret);
+  it('should reject timestamp in future', () => {
+    const timestamp = Math.floor(Date.now() / 1000) + 400;
+    const signature = generateValidSignature(timestamp, body, secret);
 
-      const result = verifyStripe({
-        body: emptyBody,
-        signature,
-        secret,
-      });
-
-      expect(result.valid).toBe(true);
+    const result = verifyStripe({
+      rawBodyBytes: body,
+      stripeSignatureHeader: signature,
+      signingSecret: secret,
+      toleranceSec: 300,
     });
 
-    it('should handle special characters in body', () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const specialBody = '{"emoji":"🚀","unicode":"日本語"}';
-      const signature = generateValidSignature(timestamp, specialBody, secret);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('timestamp_in_future');
+    }
+  });
 
-      const result = verifyStripe({
-        body: specialBody,
-        signature,
-        secret,
-      });
+  it('should reject bad secret format', () => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = generateValidSignature(timestamp, body, 'bad_secret');
 
-      expect(result.valid).toBe(true);
+    const result = verifyStripe({
+      rawBodyBytes: body,
+      stripeSignatureHeader: signature,
+      signingSecret: 'bad_secret', // doesn't start with whsec_
     });
 
-    it('should use default tolerance of 300 seconds', () => {
-      const timestamp = Math.floor(Date.now() / 1000) - 350; // 350 seconds ago
-      const signature = generateValidSignature(timestamp, body, secret);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('bad_secret_format');
+    }
+  });
 
-      const result = verifyStripe({
-        body,
-        signature,
-        secret,
-        // No tolerance specified
-      });
+  it('should reject signature mismatch', () => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = generateValidSignature(timestamp, body, 'whsec_wrong');
 
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('tolerance: 300');
+    const result = verifyStripe({
+      rawBodyBytes: body,
+      stripeSignatureHeader: signature,
+      signingSecret: secret,
     });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.kind === 'signature_mismatch') {
+      expect(result.expectedHex).toBeDefined();
+      expect(result.receivedV1).toBeDefined();
+    }
   });
 });

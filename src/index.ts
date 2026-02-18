@@ -1,10 +1,19 @@
-export { verifyStripe } from './stripe';
-export type { StripeVerifyOptions, StripeVerifyResult } from './stripe';
+// Stripe
+export { verifyStripe, parseStripeSignatureHeader } from './stripe';
+export type { StripeVerifyOptions, StripeVerifyResult, StripeSigParse } from './stripe';
 
+// GitHub
 export { verifyGitHub } from './github';
 export type { GitHubVerifyOptions, GitHubVerifyResult } from './github';
 
+// Shopify
 export { verifyShopify } from './shopify';
 export type { ShopifyVerifyOptions, ShopifyVerifyResult } from './shopify';
 
-export { timingSafeEqual } from './timing-safe';
+// Utilities
+export {
+  timingSafeEqual,
+  constantTimeEqual,
+  hexToBytes,
+  bytesToHex,
+} from './timing-safe';
