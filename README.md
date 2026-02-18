@@ -94,6 +94,7 @@ if (result.ok) {
 } else {
   console.error('❌ Error:', result.kind);
 }
+```
 
 ## Utilities
 
