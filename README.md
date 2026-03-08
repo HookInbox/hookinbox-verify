@@ -26,7 +26,6 @@ if (!result.ok) {
 ## Why @hookinbox/verify?
 
 **Why use this instead of platform SDKs?**
-- ✅ **Zero dependencies** - No bloat, just verification
 - ✅ **Detailed diagnostics** - Know exactly why verification failed
 - ✅ **Type-safe** - Full TypeScript support
 - ✅ **Multi-platform** - One package for all platforms
